@@ -16,6 +16,28 @@
 # REJECT : 拒否
 ###########################################################
 
+###########################################################
+# チートシート
+#
+# -A, --append       指定チェインに1つ以上の新しいルールを追加
+# -D, --delete       指定チェインから1つ以上のルールを削除
+# -P, --policy       指定チェインのポリシーを指定したターゲットに設定
+# -N, --new-chain    新しいユーザー定義チェインを作成
+# -X, --delete-chain 指定ユーザー定義チェインを削除
+# -F                 テーブル初期化
+#
+# -p, --protocol      プロコトル         プロトコル(tcp、udp、icmp、all)を指定
+# -s, --source        IPアドレス[/mask]  送信元のアドレス。IPアドレスorホスト名を記述
+# -d, --destination   IPアドレス[/mask]  送信先のアドレス。IPアドレスorホスト名を記述
+# -i, --in-interface  デバイス           パケットが入ってくるインターフェイスを指定
+# -o, --out-interface デバイス           パケットが出ていくインターフェイスを指定
+# -j, --jump          ターゲット         条件に合ったときのアクションを指定
+# -t, --table         テーブル           テーブルを指定
+# -m state --state    状態              パケットの状態を条件として指定
+#                                       stateは、 NEW、ESTABLISHED、RELATED、INVALIDが指定できる
+# !                   条件を反転（～以外となる）
+###########################################################
+
 # パス
 PATH=/sbin:/usr/sbin:/bin:/usr/bin
 
@@ -43,7 +65,7 @@ PATH=/sbin:/usr/sbin:/bin:/usr/bin
 # 	"xxx.xxx.xxx.xxx"
 # )
 
-# 拒否リスト(配列)
+# 無条件破棄するリスト(配列)
 # DENY_HOSTS=(
 # 	"xxx.xxx.xxx.xxx"
 # 	"xxx.xxx.xxx.xxx"
@@ -68,12 +90,40 @@ NET_BIOS=135,137,138,139,445
 DHCP=67,68
 
 ###########################################################
-# iptablesの初期化
-# すべてのルールを削除
+# 関数
 ###########################################################
-iptables -F # テーブル初期化
-iptables -X # チェーンを削除
-iptables -Z # パケットカウンタ・バイトカウンタをクリア
+
+# iptablesの初期化, すべてのルールを削除
+initialize() 
+{
+	iptables -F # テーブル初期化
+	iptables -X # チェーンを削除
+	iptables -Z # パケットカウンタ・バイトカウンタをクリア
+	iptables -P INPUT   ACCEPT
+	iptables -P OUTPUT  ACCEPT
+	iptables -P FORWARD ACCEPT
+}
+
+# ルール適用後の処理
+finailize()
+{
+	/etc/init.d/iptables save && # 設定の保存
+	/etc/init.d/iptables restart && # 保存したもので再起動してみる
+	return 0
+	return 1
+}
+
+# 開発用
+if [ "$1" == "dev" ]
+then
+	iptables() { echo "iptables $@"; }
+	finailize() { echo "finailize"; }
+fi
+
+###########################################################
+# iptablesの初期化
+###########################################################
+initialize
 
 ###########################################################
 # ポリシーの決定
@@ -108,7 +158,7 @@ then
 fi
 
 ###########################################################
-# 拒否IPからのアクセスは破棄
+# $DENY_HOSTSからのアクセスは破棄
 ###########################################################
 if [ "${DENY_HOSTS[@]}" ]
 then
@@ -172,7 +222,7 @@ iptables -A INPUT -p tcp --syn -j SYN_FLOOD
 # 攻撃対策: HTTP DoS/DDoS Attack
 ###########################################################
 iptables -N HTTP_DOS # "HTTP_DOS" という名前でチェーンを作る
-iptables -A HTTP_DOS -p tcp --dport $HTTP \
+iptables -A HTTP_DOS -p tcp -m multiport --dport $HTTP \
          -m hashlimit \
          --hashlimit 1/s \
          --hashlimit-burst 100 \
@@ -195,7 +245,7 @@ iptables -A HTTP_DOS -j LOG --log-prefix "[HTTP DoS attack] "
 iptables -A HTTP_DOS -j DROP
 
 # HTTPへのパケットは "HTTP_DOS" チェーンへジャンプ
-iptables -A INPUT -p tcp --dport $HTTP -j HTTP_DOS
+iptables -A INPUT -p tcp -m multiport --dport $HTTP -j HTTP_DOS
 
 ###########################################################
 # 攻撃対策: IDENT port probe
@@ -204,7 +254,7 @@ iptables -A INPUT -p tcp --dport $HTTP -j HTTP_DOS
 # する可能性があります。
 # DROP ではメールサーバ等のレスポンス低下になるため REJECTする
 ###########################################################
-iptables -A INPUT -p tcp --dport $IDENT -j REJECT --reject-with tcp-reset
+iptables -A INPUT -p tcp -m multiport --dport $IDENT -j REJECT --reject-with tcp-reset
 
 ###########################################################
 # 攻撃対策: SSH Brute Force
@@ -213,9 +263,9 @@ iptables -A INPUT -p tcp --dport $IDENT -j REJECT --reject-with tcp-reset
 # SSHクライアント側が再接続を繰り返すのを防ぐためDROPではなくREJECTにする。
 # SSHサーバがパスワード認証ONの場合、以下をアンコメントアウトする
 ###########################################################
-# iptables -A INPUT -p tcp --syn --dport $SSH -m recent --name ssh_attack --set
-# iptables -A INPUT -p tcp --syn --dport $SSH -m recent --name ssh_attack --rcheck --seconds 60 --hitcount 5 -j LOG --log-prefix "[SSH Brute Force] "
-# iptables -A INPUT -p tcp --syn --dport $SSH -m recent --name ssh_attack --rcheck --seconds 60 --hitcount 5 -j REJECT --reject-with tcp-reset
+# iptables -A INPUT -p tcp --syn -m multiport --dport $SSH -m recent --name ssh_attack --set
+# iptables -A INPUT -p tcp --syn -m multiport --dport $SSH -m recent --name ssh_attack --rcheck --seconds 60 --hitcount 5 -j LOG --log-prefix "[SSH Brute Force] "
+# iptables -A INPUT -p tcp --syn -m multiport --dport $SSH -m recent --name ssh_attack --rcheck --seconds 60 --hitcount 5 -j REJECT --reject-with tcp-reset
 
 ###########################################################
 # 攻撃対策: FTP Brute Force
@@ -224,9 +274,9 @@ iptables -A INPUT -p tcp --dport $IDENT -j REJECT --reject-with tcp-reset
 # FTPクライアント側が再接続を繰り返すのを防ぐためDROPではなくREJECTにする。
 # FTPサーバを立ち上げている場合、以下をアンコメントアウトする
 ###########################################################
-# iptables -A INPUT -p tcp --syn --dport $FTP -m recent --name ftp_attack --set
-# iptables -A INPUT -p tcp --syn --dport $FTP -m recent --name ftp_attack --rcheck --seconds 60 --hitcount 5 -j LOG --log-prefix "[FTP Brute Force] "
-# iptables -A INPUT -p tcp --syn --dport $FTP -m recent --name ftp_attack --rcheck --seconds 60 --hitcount 5 -j REJECT --reject-with tcp-reset
+# iptables -A INPUT -p tcp --syn -m multiport --dport $FTP -m recent --name ftp_attack --set
+# iptables -A INPUT -p tcp --syn -m multiport --dport $FTP -m recent --name ftp_attack --rcheck --seconds 60 --hitcount 5 -j LOG --log-prefix "[FTP Brute Force] "
+# iptables -A INPUT -p tcp --syn -m multiport --dport $FTP -m recent --name ftp_attack --rcheck --seconds 60 --hitcount 5 -j REJECT --reject-with tcp-reset
 
 ###########################################################
 # 全ホスト(ブロードキャストアドレス、マルチキャストアドレス)宛パケットは破棄
@@ -235,6 +285,8 @@ iptables -A INPUT -d 192.168.1.255   -j LOG --log-prefix "[drop broadcast] "
 iptables -A INPUT -d 192.168.1.255   -j DROP
 iptables -A INPUT -d 255.255.255.255 -j LOG --log-prefix "[drop broadcast] "
 iptables -A INPUT -d 255.255.255.255 -j DROP
+iptables -A INPUT -d 224.0.0.1       -j LOG --log-prefix "[drop broadcast] "
+iptables -A INPUT -d 224.0.0.1       -j DROP
 
 ###########################################################
 # 全ホスト(ANY)からの入力許可
@@ -244,23 +296,23 @@ iptables -A INPUT -d 255.255.255.255 -j DROP
 iptables -A INPUT -p icmp -j ACCEPT # ANY -> SELF
 
 # HTTP, HTTPS
-iptables -A INPUT -p tcp --dport $HTTP -j ACCEPT # ANY -> SELF
+iptables -A INPUT -p tcp -m multiport --dport $HTTP -j ACCEPT # ANY -> SELF
 
 # FTP
-# iptables -A INPUT -p tcp --dport $FTP -j ACCEPT # ANY -> SELF
+# iptables -A INPUT -p tcp -m multiport --dport $FTP -j ACCEPT # ANY -> SELF
 
 # DNS
-# iptables -A INPUT -p tcp --sport $DNS -j ACCEPT # ANY -> SELF
-# iptables -A INPUT -p udp --sport $DNS -j ACCEPT # ANY -> SELF
+# iptables -A INPUT -p tcp -m multiport --sport $DNS -j ACCEPT # ANY -> SELF
+# iptables -A INPUT -p udp -m multiport --sport $DNS -j ACCEPT # ANY -> SELF
 
 # SMTP
-# iptables -A INPUT -p tcp --sport $SMTP -j ACCEPT # ANY -> SELF
+# iptables -A INPUT -p tcp -m multiport --sport $SMTP -j ACCEPT # ANY -> SELF
 
 # POP3
-# iptables -A INPUT -p tcp --sport $POP3 -j ACCEPT # ANY -> SELF
+# iptables -A INPUT -p tcp -m multiport --sport $POP3 -j ACCEPT # ANY -> SELF
 
 # IMAP
-# iptables -A INPUT -p tcp --sport $IMAP -j ACCEPT # ANY -> SELF
+# iptables -A INPUT -p tcp -m multiport --sport $IMAP -j ACCEPT # ANY -> SELF
 
 ###########################################################
 # ローカルネットワークからの入力許可
@@ -269,13 +321,13 @@ iptables -A INPUT -p tcp --dport $HTTP -j ACCEPT # ANY -> SELF
 if [ "$LOCAL_NET" ]
 then
 	# SSH
-	iptables -A INPUT -p tcp -s $LOCAL_NET --dport $SSH -j ACCEPT # LOCALNET -> SELF
+	iptables -A INPUT -p tcp -s $LOCAL_NET -m multiport --dport $SSH -j ACCEPT # LOCALNET -> SELF
 	
 	# FTP
 	iptables -A INPUT -p tcp -s $LOCAL_NET -m multiport --dport $FTP -j ACCEPT # LOCALNET -> SELF
 
 	# MySQL
-	iptables -A INPUT -p tcp -s $LOCAL_NET --dport $MYSQL -j ACCEPT # LOCALNET -> SELF
+	iptables -A INPUT -p tcp -s $LOCAL_NET -m multiport --dport $MYSQL -j ACCEPT # LOCALNET -> SELF
 fi
 
 ###########################################################
@@ -294,26 +346,15 @@ fi
 ###########################################################
 iptables -A INPUT  -j LOG --log-prefix "[drop] "
 iptables -A INPUT  -j DROP
- 
-###########################################################
-# 設定の保存
-###########################################################
-# /etc/init.d/iptables save
-trap 'echo "iptablesを保存します。"; /etc/init.d/iptables save; exit 0' 2
 
 ###########################################################
-# 締め出し回避策
+# SSH 締め出し回避策
+# 30秒間スリープしてその後 iptables をリセットする。
+# SSH が締め出されていなければ、 Ctrl-C を押せるはず。
 ###########################################################
-
-for i in $(seq 60 1)
-do
-	echo "${i}秒後に締め出し回避のためiptablesを自動初期化します。確認してOKであれば Ctrl-C 押して下さい。"
-	sleep 1
-done
-
-iptables -F
-iptables -X
-iptables -Z
-iptables -P INPUT   ACCEPT
-iptables -P OUTPUT  ACCEPT
-iptables -P FORWARD ACCEPT
+trap 'finailize && exit 0' 2 # Ctrl-C をトラップする
+echo "In 30 seconds iptables will be automatically reset."
+echo "Don't forget to test new SSH connection!"
+echo "If there is no problem then press Ctrl-C to finish."
+sleep 30
+initialize
