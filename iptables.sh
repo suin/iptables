@@ -357,4 +357,5 @@ echo "In 30 seconds iptables will be automatically reset."
 echo "Don't forget to test new SSH connection!"
 echo "If there is no problem then press Ctrl-C to finish."
 sleep 30
+echo "rollback..."
 initialize
