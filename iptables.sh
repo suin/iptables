@@ -48,9 +48,9 @@ PATH=/sbin:/usr/sbin:/bin:/usr/bin
 
 # 内部ネットワークとして許可する範囲
 # LOCAL_NET="xxx.xxx.xxx.xxx/xx"
- 
-# 外部ネットワークとして許可する範囲
-# GLOBAL_NET="xxx.xxx.xxx.xxx/xx"
+
+# 内部ネットワークとして一部制限付きで許可する範囲
+# LIMITED_LOCAL_NET="xxx.xxx.xxx.xxx/xx"
 
 # ZabbixサーバーIP
 # ZABBIX_IP="xxx.xxx.xxx.xxx"
@@ -352,19 +352,19 @@ iptables -A INPUT -p tcp -m multiport --dport $SSH -j ACCEPT # ANY -> SEL
 # iptables -A INPUT -p tcp -m multiport --sport $IMAP -j ACCEPT # ANY -> SELF
 
 ###########################################################
-# ローカルネットワークからの入力許可
+# ローカルネットワーク(制限付き)からの入力許可
 ###########################################################
 
-if [ "$LOCAL_NET" ]
+if [ "$LIMITED_LOCAL_NET" ]
 then
 	# SSH
-	iptables -A INPUT -p tcp -s $LOCAL_NET -m multiport --dport $SSH -j ACCEPT # LOCALNET -> SELF
+	iptables -A INPUT -p tcp -s $LIMITED_LOCAL_NET -m multiport --dport $SSH -j ACCEPT # LIMITED_LOCAL_NET -> SELF
 	
 	# FTP
-	iptables -A INPUT -p tcp -s $LOCAL_NET -m multiport --dport $FTP -j ACCEPT # LOCALNET -> SELF
+	iptables -A INPUT -p tcp -s $LIMITED_LOCAL_NET -m multiport --dport $FTP -j ACCEPT # LIMITED_LOCAL_NET -> SELF
 
 	# MySQL
-	iptables -A INPUT -p tcp -s $LOCAL_NET -m multiport --dport $MYSQL -j ACCEPT # LOCALNET -> SELF
+	iptables -A INPUT -p tcp -s $LIMITED_LOCAL_NET -m multiport --dport $MYSQL -j ACCEPT # LIMITED_LOCAL_NET -> SELF
 fi
 
 ###########################################################
