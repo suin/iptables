@@ -88,15 +88,13 @@ iptables -P FORWARD ACCEPT
 
 # ローカルホスト
 # lo はローカルループバックのことで自分自身のホストを指す
-iptables -A INPUT  -i lo -j ACCEPT # SELF -> SELF
-iptables -A OUTPUT -o lo -j ACCEPT # SELF -> SELF
+iptables -A INPUT -i lo -j ACCEPT # SELF -> SELF
 
 # ローカルネットワーク
 # $LOCAL_NET が設定されていれば LAN上の他のサーバとのやり取りを許可する
 if [ "$LOCAL_NET" ]
 then
-	iptables -A INPUT  -p tcp -s $LOCAL_NET -j ACCEPT # LOCAL_NET -> SELF
-	iptables -A OUTPUT -p tcp -d $LOCAL_NET -j ACCEPT # SELF -> LOCAL_NET
+	iptables -A INPUT -p tcp -s $LOCAL_NET -j ACCEPT # LOCAL_NET -> SELF
 fi
 
 # 信頼可能ホスト
@@ -105,8 +103,7 @@ if [ "${ALLOW_HOSTS[@]}" ]
 then
 	for allow_host in ${ALLOW_HOSTS[@]}
 	do
-		iptables -A INPUT  -p tcp -s $allow_host -j ACCEPT # allow_host -> SELF
-		iptables -A OUTPUT -p tcp -d $allow_host -j ACCEPT # SELF -> allow_host
+		iptables -A INPUT -p tcp -s $allow_host -j ACCEPT # allow_host -> SELF
 	done
 fi
 
@@ -126,7 +123,6 @@ fi
 # セッション確立後のパケット疎通は許可
 ###########################################################
 iptables -A INPUT  -p tcp -m state --state ESTABLISHED,RELATED -j ACCEPT
-iptables -A OUTPUT -p tcp -m state --state ESTABLISHED,RELATED -j ACCEPT
 
 ###########################################################
 # 攻撃対策: Stealth Scan
@@ -295,3 +291,17 @@ iptables -P FORWARD DROP
 ###########################################################
 /etc/init.d/iptables save
 /etc/init.d/iptables restart
+
+###########################################################
+# 締め出し回避策
+###########################################################
+echo "締め出し回避のため60秒後にiptablesの初期化を行います。"
+echo "確認してOKであれば control + C を押して初期化を中断してください。"
+
+sleep 60
+iptables -F
+iptables -X
+iptables -Z
+iptables -P INPUT   ACCEPT
+iptables -P OUTPUT  ACCEPT
+iptables -P FORWARD ACCEPT
