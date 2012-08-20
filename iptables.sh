@@ -177,16 +177,50 @@ iptables -A INPUT  -p tcp -m state --state ESTABLISHED,RELATED -j ACCEPT
 ###########################################################
 # 攻撃対策: Stealth Scan
 ###########################################################
-# すべてのTCPセッションがSYNで始まらないものを破棄
-iptables -A INPUT -p tcp ! --syn -m state --state NEW -j LOG --log-prefix "stealth_scan_attack: "
-iptables -A INPUT -p tcp ! --syn -m state --state NEW -j DROP
+iptables -N STEALTH_SCAN # "STEALTH_SCAN" という名前でチェーンを作る
+iptables -A STEALTH_SCAN -j LOG --log-prefix "stealth_scan_attack: "
+iptables -A STEALTH_SCAN -j DROP
+
+# ステルススキャンらしきパケットは "STEALTH_SCAN" チェーンへジャンプする
+iptables -A INPUT -p tcp --tcp-flags SYN,ACK SYN,ACK -m state --state NEW -j STEALTH_SCAN
+iptables -A INPUT -p tcp --tcp-flags ALL NONE -j STEALTH_SCAN
+
+iptables -A INPUT -p tcp --tcp-flags SYN,FIN SYN,FIN         -j STEALTH_SCAN
+iptables -A INPUT -p tcp --tcp-flags SYN,RST SYN,RST         -j STEALTH_SCAN
+iptables -A INPUT -p tcp --tcp-flags ALL SYN,RST,ACK,FIN,URG -j STEALTH_SCAN
+
+iptables -A INPUT -p tcp --tcp-flags FIN,RST FIN,RST -j STEALTH_SCAN
+iptables -A INPUT -p tcp --tcp-flags ACK,FIN FIN     -j STEALTH_SCAN
+iptables -A INPUT -p tcp --tcp-flags ACK,PSH PSH     -j STEALTH_SCAN
+iptables -A INPUT -p tcp --tcp-flags ACK,URG URG     -j STEALTH_SCAN
+
+###########################################################
+# 攻撃対策: フラグメントパケットによるポートスキャン,DOS攻撃
+# namap -v -sF などの対策
+###########################################################
+iptables -A INPUT -f -j LOG --log-prefix 'fragment_packet:'
+iptables -A INPUT -f -j DROP
  
 ###########################################################
 # 攻撃対策: Ping of Death
 ###########################################################
-# 1秒間に10回を超えるpingを破棄
-iptables -A INPUT -p icmp --icmp-type echo-request -m limit --limit 1/s --limit-burst 10 -j LOG --log-prefix "ping_of_death_attack: "
-iptables -A INPUT -p icmp --icmp-type echo-request -m limit --limit 1/s --limit-burst 10 -j DROP
+# 毎秒1回を超えるpingが10回続いたら破棄
+iptables -N PING_OF_DEATH # "PING_OF_DEATH" という名前でチェーンを作る
+iptables -A PING_OF_DEATH -p icmp --icmp-type echo-request \
+         -m hashlimit \
+         --hashlimit 1/s \
+         --hashlimit-burst 10 \
+         --hashlimit-htable-expire 300000 \
+         --hashlimit-mode srcip \
+         --hashlimit-name t_PING_OF_DEATH \
+         -j RETURN
+
+# 制限を超えたICMPを破棄
+iptables -A PING_OF_DEATH -j LOG --log-prefix "ping_of_death_attack: "
+iptables -A PING_OF_DEATH -j DROP
+
+# ICMP は "PING_OF_DEATH" チェーンへジャンプ
+iptables -A INPUT -p icmp --icmp-type echo-request -j PING_OF_DEATH
 
 ###########################################################
 # 攻撃対策: SYN Flood Attack
@@ -297,6 +331,9 @@ iptables -A INPUT -p icmp -j ACCEPT # ANY -> SELF
 
 # HTTP, HTTPS
 iptables -A INPUT -p tcp -m multiport --dport $HTTP -j ACCEPT # ANY -> SELF
+
+# SSH: ホストを制限する場合は TRUST_HOSTS に信頼ホストを書き下記をコメントアウトする
+iptables -A INPUT -p tcp -m multiport --dport $SSH -j ACCEPT # ANY -> SEL
 
 # FTP
 # iptables -A INPUT -p tcp -m multiport --dport $FTP -j ACCEPT # ANY -> SELF
