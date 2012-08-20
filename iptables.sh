@@ -8,7 +8,6 @@
 # 心配な場合は、送信も受信同様に基本破棄・ホワイトリストで許可するように書き換えると良い。
 ###########################################################
 
-
 ###########################################################
 # 用語の統一
 # わかりやすさのためルールとコメントの用語を以下に統一する
@@ -76,12 +75,13 @@ iptables -F # テーブル初期化
 iptables -X # チェーンを削除
 iptables -Z # パケットカウンタ・バイトカウンタをクリア
 
-# ポリシーの初期化
-# 「ポリシーの決定」でDROPにおきかえる
-iptables -P INPUT   ACCEPT
+###########################################################
+# ポリシーの決定
+###########################################################
+iptables -P INPUT   DROP # すべてDROP。すべての穴をふさいでから必要なポートを空けていくのが良い。
 iptables -P OUTPUT  ACCEPT
-iptables -P FORWARD ACCEPT
- 
+iptables -P FORWARD DROP
+
 ###########################################################
 # 信頼可能なホストは許可
 ###########################################################
@@ -144,13 +144,22 @@ iptables -A INPUT -p icmp --icmp-type echo-request -m limit --limit 1/s --limit-
 ###########################################################
 iptables -N SYN_FLOOD # "SYN_FLOOD" という名前でチェーンを作る
 iptables -A SYN_FLOOD -p tcp --syn \
-         -m hashlimit \                     # ホストごとに制限するため limit ではなく hashlimit を利用する
-         --hashlimit 200/s \                # 秒間に200接続を上限にする
-         --hashlimit-burst 3 \              # 上記の上限を超えた接続が3回連続であれば制限がかかる
-         --hashlimit-htable-expire 300000 \ # 管理テーブル中のレコードの有効期間（単位：ms
-         --hashlimit-mode srcip \           # 送信元アドレスでリクエスト数を管理する
-         --hashlimit-name t_SYN_FLOOD \     # /proc/net/ipt_hashlimit に保存されるハッシュテーブル名
-         -j RETURN                          # 制限以内であれば、親チェーンに戻る
+         -m hashlimit \
+         --hashlimit 200/s \
+         --hashlimit-burst 3 \
+         --hashlimit-htable-expire 300000 \
+         --hashlimit-mode srcip \
+         --hashlimit-name t_SYN_FLOOD \
+         -j RETURN
+
+# 解説
+# -m hashlimit                       ホストごとに制限するため limit ではなく hashlimit を利用する
+# --hashlimit 200/s                  秒間に200接続を上限にする
+# --hashlimit-burst 3                上記の上限を超えた接続が3回連続であれば制限がかかる
+# --hashlimit-htable-expire 300000   管理テーブル中のレコードの有効期間（単位：ms
+# --hashlimit-mode srcip             送信元アドレスでリクエスト数を管理する
+# --hashlimit-name t_SYN_FLOOD       /proc/net/ipt_hashlimit に保存されるハッシュテーブル名
+# -j RETURN                          制限以内であれば、親チェーンに戻る
 
 # 制限を超えたSYNパケットを破棄
 iptables -A SYN_FLOOD -j LOG --log-prefix "[SYN flood attack] "
@@ -164,13 +173,22 @@ iptables -A INPUT -p tcp --syn -j SYN_FLOOD
 ###########################################################
 iptables -N HTTP_DOS # "HTTP_DOS" という名前でチェーンを作る
 iptables -A HTTP_DOS -p tcp --dport $HTTP \
-         -m hashlimit \                     # ホストごとに制限するため limit ではなく hashlimit を利用する
-         --hashlimit 1/s \                  # 秒間1接続を上限とする
-         --hashlimit-burst 100 \            # 上記の上限を100回連続で超えると制限がかかる
-         --hashlimit-htable-expire 300000 \ # 管理テーブル中のレコードの有効期間（単位：ms
-         --hashlimit-mode srcip \           # 送信元アドレスでリクエスト数を管理する
-         --hashlimit-name t_HTTP_DOS \      # /proc/net/ipt_hashlimit に保存されるハッシュテーブル名
-         -j RETURN                          # 制限以内であれば、親チェーンに戻る
+         -m hashlimit \
+         --hashlimit 1/s \
+         --hashlimit-burst 100 \
+         --hashlimit-htable-expire 300000 \
+         --hashlimit-mode srcip \
+         --hashlimit-name t_HTTP_DOS \
+         -j RETURN
+
+# 解説
+# -m hashlimit                       ホストごとに制限するため limit ではなく hashlimit を利用する
+# --hashlimit 1/s                    秒間1接続を上限とする
+# --hashlimit-burst 100              上記の上限を100回連続で超えると制限がかかる
+# --hashlimit-htable-expire 300000   管理テーブル中のレコードの有効期間（単位：ms
+# --hashlimit-mode srcip             送信元アドレスでリクエスト数を管理する
+# --hashlimit-name t_HTTP_DOS        /proc/net/ipt_hashlimit に保存されるハッシュテーブル名
+# -j RETURN                          制限以内であれば、親チェーンに戻る
 
 # 制限を超えた接続を破棄
 iptables -A HTTP_DOS -j LOG --log-prefix "[HTTP DoS attack] "
@@ -278,27 +296,21 @@ iptables -A INPUT  -j LOG --log-prefix "[drop] "
 iptables -A INPUT  -j DROP
  
 ###########################################################
-# ポリシーの決定
-# すべてのパケットを破棄(DROP)する。
-# すべての穴をふさいでから必要なポートを空けていくのが良い。
+# 設定の保存
 ###########################################################
-iptables -P INPUT   DROP
-iptables -P OUTPUT  ACCEPT
-iptables -P FORWARD DROP
-
-###########################################################
-# 設定の保存と反映
-###########################################################
-/etc/init.d/iptables save
-/etc/init.d/iptables restart
+# /etc/init.d/iptables save
+trap 'echo "iptablesを保存します。"; /etc/init.d/iptables save; exit 0' 2
 
 ###########################################################
 # 締め出し回避策
 ###########################################################
-echo "締め出し回避のため60秒後にiptablesの初期化を行います。"
-echo "確認してOKであれば control + C を押して初期化を中断してください。"
 
-sleep 60
+for i in $(seq 60 1)
+do
+	echo "${i}秒後に締め出し回避のためiptablesを自動初期化します。確認してOKであれば Ctrl-C 押して下さい。"
+	sleep 1
+done
+
 iptables -F
 iptables -X
 iptables -Z
