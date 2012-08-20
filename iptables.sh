@@ -164,7 +164,7 @@ if [ "${DENY_HOSTS[@]}" ]
 then
 	for host in ${DENY_HOSTS[@]}
 	do
-		iptables -A INPUT -s $ip -m limit --limit 1/s -j LOG --log-prefix "[deny host] "
+		iptables -A INPUT -s $ip -m limit --limit 1/s -j LOG --log-prefix "deny_host: "
 		iptables -A INPUT -s $ip -j DROP
 	done
 fi
@@ -178,14 +178,14 @@ iptables -A INPUT  -p tcp -m state --state ESTABLISHED,RELATED -j ACCEPT
 # 攻撃対策: Stealth Scan
 ###########################################################
 # すべてのTCPセッションがSYNで始まらないものを破棄
-iptables -A INPUT -p tcp ! --syn -m state --state NEW -j LOG --log-prefix "[stealth scan attack] "
+iptables -A INPUT -p tcp ! --syn -m state --state NEW -j LOG --log-prefix "stealth_scan_attack: "
 iptables -A INPUT -p tcp ! --syn -m state --state NEW -j DROP
  
 ###########################################################
 # 攻撃対策: Ping of Death
 ###########################################################
 # 1秒間に10回を超えるpingを破棄
-iptables -A INPUT -p icmp --icmp-type echo-request -m limit --limit 1/s --limit-burst 10 -j LOG --log-prefix "[ping of death attack] "
+iptables -A INPUT -p icmp --icmp-type echo-request -m limit --limit 1/s --limit-burst 10 -j LOG --log-prefix "ping_of_death_attack: "
 iptables -A INPUT -p icmp --icmp-type echo-request -m limit --limit 1/s --limit-burst 10 -j DROP
 
 ###########################################################
@@ -212,7 +212,7 @@ iptables -A SYN_FLOOD -p tcp --syn \
 # -j RETURN                          制限以内であれば、親チェーンに戻る
 
 # 制限を超えたSYNパケットを破棄
-iptables -A SYN_FLOOD -j LOG --log-prefix "[SYN flood attack] "
+iptables -A SYN_FLOOD -j LOG --log-prefix "syn_flood_attack: "
 iptables -A SYN_FLOOD -j DROP
 
 # SYNパケットは "SYN_FLOOD" チェーンへジャンプ
@@ -241,7 +241,7 @@ iptables -A HTTP_DOS -p tcp -m multiport --dport $HTTP \
 # -j RETURN                          制限以内であれば、親チェーンに戻る
 
 # 制限を超えた接続を破棄
-iptables -A HTTP_DOS -j LOG --log-prefix "[HTTP DoS attack] "
+iptables -A HTTP_DOS -j LOG --log-prefix "http_dos_attack: "
 iptables -A HTTP_DOS -j DROP
 
 # HTTPへのパケットは "HTTP_DOS" チェーンへジャンプ
@@ -264,7 +264,7 @@ iptables -A INPUT -p tcp -m multiport --dport $IDENT -j REJECT --reject-with tcp
 # SSHサーバがパスワード認証ONの場合、以下をアンコメントアウトする
 ###########################################################
 # iptables -A INPUT -p tcp --syn -m multiport --dport $SSH -m recent --name ssh_attack --set
-# iptables -A INPUT -p tcp --syn -m multiport --dport $SSH -m recent --name ssh_attack --rcheck --seconds 60 --hitcount 5 -j LOG --log-prefix "[SSH Brute Force] "
+# iptables -A INPUT -p tcp --syn -m multiport --dport $SSH -m recent --name ssh_attack --rcheck --seconds 60 --hitcount 5 -j LOG --log-prefix "ssh_brute_force: "
 # iptables -A INPUT -p tcp --syn -m multiport --dport $SSH -m recent --name ssh_attack --rcheck --seconds 60 --hitcount 5 -j REJECT --reject-with tcp-reset
 
 ###########################################################
@@ -275,17 +275,17 @@ iptables -A INPUT -p tcp -m multiport --dport $IDENT -j REJECT --reject-with tcp
 # FTPサーバを立ち上げている場合、以下をアンコメントアウトする
 ###########################################################
 # iptables -A INPUT -p tcp --syn -m multiport --dport $FTP -m recent --name ftp_attack --set
-# iptables -A INPUT -p tcp --syn -m multiport --dport $FTP -m recent --name ftp_attack --rcheck --seconds 60 --hitcount 5 -j LOG --log-prefix "[FTP Brute Force] "
+# iptables -A INPUT -p tcp --syn -m multiport --dport $FTP -m recent --name ftp_attack --rcheck --seconds 60 --hitcount 5 -j LOG --log-prefix "ftp_brute_force: "
 # iptables -A INPUT -p tcp --syn -m multiport --dport $FTP -m recent --name ftp_attack --rcheck --seconds 60 --hitcount 5 -j REJECT --reject-with tcp-reset
 
 ###########################################################
 # 全ホスト(ブロードキャストアドレス、マルチキャストアドレス)宛パケットは破棄
 ###########################################################
-iptables -A INPUT -d 192.168.1.255   -j LOG --log-prefix "[drop broadcast] "
+iptables -A INPUT -d 192.168.1.255   -j LOG --log-prefix "drop_broadcast: "
 iptables -A INPUT -d 192.168.1.255   -j DROP
-iptables -A INPUT -d 255.255.255.255 -j LOG --log-prefix "[drop broadcast] "
+iptables -A INPUT -d 255.255.255.255 -j LOG --log-prefix "drop_broadcast: "
 iptables -A INPUT -d 255.255.255.255 -j DROP
-iptables -A INPUT -d 224.0.0.1       -j LOG --log-prefix "[drop broadcast] "
+iptables -A INPUT -d 224.0.0.1       -j LOG --log-prefix "drop_broadcast: "
 iptables -A INPUT -d 224.0.0.1       -j DROP
 
 ###########################################################
@@ -344,7 +344,7 @@ fi
 # それ以外
 # 上記のルールにも当てはまらなかったものはロギングして破棄
 ###########################################################
-iptables -A INPUT  -j LOG --log-prefix "[drop] "
+iptables -A INPUT  -j LOG --log-prefix "drop: "
 iptables -A INPUT  -j DROP
 
 ###########################################################
