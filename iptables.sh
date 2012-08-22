@@ -256,7 +256,7 @@ iptables -A INPUT -p tcp --syn -j SYN_FLOOD
 # 攻撃対策: HTTP DoS/DDoS Attack
 ###########################################################
 iptables -N HTTP_DOS # "HTTP_DOS" という名前でチェーンを作る
-iptables -A HTTP_DOS -p tcp -m multiport --dport $HTTP \
+iptables -A HTTP_DOS -p tcp -m multiport --dports $HTTP \
          -m hashlimit \
          --hashlimit 1/s \
          --hashlimit-burst 100 \
@@ -279,7 +279,7 @@ iptables -A HTTP_DOS -j LOG --log-prefix "http_dos_attack: "
 iptables -A HTTP_DOS -j DROP
 
 # HTTPへのパケットは "HTTP_DOS" チェーンへジャンプ
-iptables -A INPUT -p tcp -m multiport --dport $HTTP -j HTTP_DOS
+iptables -A INPUT -p tcp -m multiport --dports $HTTP -j HTTP_DOS
 
 ###########################################################
 # 攻撃対策: IDENT port probe
@@ -288,7 +288,7 @@ iptables -A INPUT -p tcp -m multiport --dport $HTTP -j HTTP_DOS
 # する可能性があります。
 # DROP ではメールサーバ等のレスポンス低下になるため REJECTする
 ###########################################################
-iptables -A INPUT -p tcp -m multiport --dport $IDENT -j REJECT --reject-with tcp-reset
+iptables -A INPUT -p tcp -m multiport --dports $IDENT -j REJECT --reject-with tcp-reset
 
 ###########################################################
 # 攻撃対策: SSH Brute Force
@@ -297,9 +297,9 @@ iptables -A INPUT -p tcp -m multiport --dport $IDENT -j REJECT --reject-with tcp
 # SSHクライアント側が再接続を繰り返すのを防ぐためDROPではなくREJECTにする。
 # SSHサーバがパスワード認証ONの場合、以下をアンコメントアウトする
 ###########################################################
-# iptables -A INPUT -p tcp --syn -m multiport --dport $SSH -m recent --name ssh_attack --set
-# iptables -A INPUT -p tcp --syn -m multiport --dport $SSH -m recent --name ssh_attack --rcheck --seconds 60 --hitcount 5 -j LOG --log-prefix "ssh_brute_force: "
-# iptables -A INPUT -p tcp --syn -m multiport --dport $SSH -m recent --name ssh_attack --rcheck --seconds 60 --hitcount 5 -j REJECT --reject-with tcp-reset
+# iptables -A INPUT -p tcp --syn -m multiport --dports $SSH -m recent --name ssh_attack --set
+# iptables -A INPUT -p tcp --syn -m multiport --dports $SSH -m recent --name ssh_attack --rcheck --seconds 60 --hitcount 5 -j LOG --log-prefix "ssh_brute_force: "
+# iptables -A INPUT -p tcp --syn -m multiport --dports $SSH -m recent --name ssh_attack --rcheck --seconds 60 --hitcount 5 -j REJECT --reject-with tcp-reset
 
 ###########################################################
 # 攻撃対策: FTP Brute Force
@@ -308,9 +308,9 @@ iptables -A INPUT -p tcp -m multiport --dport $IDENT -j REJECT --reject-with tcp
 # FTPクライアント側が再接続を繰り返すのを防ぐためDROPではなくREJECTにする。
 # FTPサーバを立ち上げている場合、以下をアンコメントアウトする
 ###########################################################
-# iptables -A INPUT -p tcp --syn -m multiport --dport $FTP -m recent --name ftp_attack --set
-# iptables -A INPUT -p tcp --syn -m multiport --dport $FTP -m recent --name ftp_attack --rcheck --seconds 60 --hitcount 5 -j LOG --log-prefix "ftp_brute_force: "
-# iptables -A INPUT -p tcp --syn -m multiport --dport $FTP -m recent --name ftp_attack --rcheck --seconds 60 --hitcount 5 -j REJECT --reject-with tcp-reset
+# iptables -A INPUT -p tcp --syn -m multiport --dports $FTP -m recent --name ftp_attack --set
+# iptables -A INPUT -p tcp --syn -m multiport --dports $FTP -m recent --name ftp_attack --rcheck --seconds 60 --hitcount 5 -j LOG --log-prefix "ftp_brute_force: "
+# iptables -A INPUT -p tcp --syn -m multiport --dports $FTP -m recent --name ftp_attack --rcheck --seconds 60 --hitcount 5 -j REJECT --reject-with tcp-reset
 
 ###########################################################
 # 全ホスト(ブロードキャストアドレス、マルチキャストアドレス)宛パケットは破棄
@@ -330,26 +330,26 @@ iptables -A INPUT -d 224.0.0.1       -j DROP
 iptables -A INPUT -p icmp -j ACCEPT # ANY -> SELF
 
 # HTTP, HTTPS
-iptables -A INPUT -p tcp -m multiport --dport $HTTP -j ACCEPT # ANY -> SELF
+iptables -A INPUT -p tcp -m multiport --dports $HTTP -j ACCEPT # ANY -> SELF
 
 # SSH: ホストを制限する場合は TRUST_HOSTS に信頼ホストを書き下記をコメントアウトする
-iptables -A INPUT -p tcp -m multiport --dport $SSH -j ACCEPT # ANY -> SEL
+iptables -A INPUT -p tcp -m multiport --dports $SSH -j ACCEPT # ANY -> SEL
 
 # FTP
-# iptables -A INPUT -p tcp -m multiport --dport $FTP -j ACCEPT # ANY -> SELF
+# iptables -A INPUT -p tcp -m multiport --dports $FTP -j ACCEPT # ANY -> SELF
 
 # DNS
-# iptables -A INPUT -p tcp -m multiport --sport $DNS -j ACCEPT # ANY -> SELF
-# iptables -A INPUT -p udp -m multiport --sport $DNS -j ACCEPT # ANY -> SELF
+# iptables -A INPUT -p tcp -m multiport --sports $DNS -j ACCEPT # ANY -> SELF
+# iptables -A INPUT -p udp -m multiport --sports $DNS -j ACCEPT # ANY -> SELF
 
 # SMTP
-# iptables -A INPUT -p tcp -m multiport --sport $SMTP -j ACCEPT # ANY -> SELF
+# iptables -A INPUT -p tcp -m multiport --sports $SMTP -j ACCEPT # ANY -> SELF
 
 # POP3
-# iptables -A INPUT -p tcp -m multiport --sport $POP3 -j ACCEPT # ANY -> SELF
+# iptables -A INPUT -p tcp -m multiport --sports $POP3 -j ACCEPT # ANY -> SELF
 
 # IMAP
-# iptables -A INPUT -p tcp -m multiport --sport $IMAP -j ACCEPT # ANY -> SELF
+# iptables -A INPUT -p tcp -m multiport --sports $IMAP -j ACCEPT # ANY -> SELF
 
 ###########################################################
 # ローカルネットワーク(制限付き)からの入力許可
@@ -358,13 +358,13 @@ iptables -A INPUT -p tcp -m multiport --dport $SSH -j ACCEPT # ANY -> SEL
 if [ "$LIMITED_LOCAL_NET" ]
 then
 	# SSH
-	iptables -A INPUT -p tcp -s $LIMITED_LOCAL_NET -m multiport --dport $SSH -j ACCEPT # LIMITED_LOCAL_NET -> SELF
+	iptables -A INPUT -p tcp -s $LIMITED_LOCAL_NET -m multiport --dports $SSH -j ACCEPT # LIMITED_LOCAL_NET -> SELF
 	
 	# FTP
-	iptables -A INPUT -p tcp -s $LIMITED_LOCAL_NET -m multiport --dport $FTP -j ACCEPT # LIMITED_LOCAL_NET -> SELF
+	iptables -A INPUT -p tcp -s $LIMITED_LOCAL_NET -m multiport --dports $FTP -j ACCEPT # LIMITED_LOCAL_NET -> SELF
 
 	# MySQL
-	iptables -A INPUT -p tcp -s $LIMITED_LOCAL_NET -m multiport --dport $MYSQL -j ACCEPT # LIMITED_LOCAL_NET -> SELF
+	iptables -A INPUT -p tcp -s $LIMITED_LOCAL_NET -m multiport --dports $MYSQL -j ACCEPT # LIMITED_LOCAL_NET -> SELF
 fi
 
 ###########################################################
