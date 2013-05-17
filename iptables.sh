@@ -149,7 +149,7 @@ fi
 
 # 信頼可能ホスト
 # $ALLOW_HOSTS が設定されていれば そのホストとのやり取りを許可する
-if [ "${ALLOW_HOSTS[@]}" ]
+if [ "${ALLOW_HOSTS}" ]
 then
 	for allow_host in ${ALLOW_HOSTS[@]}
 	do
@@ -160,7 +160,7 @@ fi
 ###########################################################
 # $DENY_HOSTSからのアクセスは破棄
 ###########################################################
-if [ "${DENY_HOSTS[@]}" ]
+if [ "${DENY_HOSTS}" ]
 then
 	for deny_host in ${DENY_HOSTS[@]}
 	do
