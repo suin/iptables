@@ -149,7 +149,7 @@ fi
 
 # 信頼可能ホスト
 # $ALLOW_HOSTS が設定されていれば そのホストとのやり取りを許可する
-if [ "${ALLOW_HOSTS[@]}" ]
+if [ "${ALLOW_HOSTS}" ]
 then
 	for allow_host in ${ALLOW_HOSTS[@]}
 	do
@@ -160,12 +160,12 @@ fi
 ###########################################################
 # $DENY_HOSTSからのアクセスは破棄
 ###########################################################
-if [ "${DENY_HOSTS[@]}" ]
+if [ "${DENY_HOSTS}" ]
 then
-	for host in ${DENY_HOSTS[@]}
+	for deny_host in ${DENY_HOSTS[@]}
 	do
-		iptables -A INPUT -s $ip -m limit --limit 1/s -j LOG --log-prefix "deny_host: "
-		iptables -A INPUT -s $ip -j DROP
+		iptables -A INPUT -s $deny_host -m limit --limit 1/s -j LOG --log-prefix "deny_host: "
+		iptables -A INPUT -s $deny_host -j DROP
 	done
 fi
 
